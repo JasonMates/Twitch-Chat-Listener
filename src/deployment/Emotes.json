@@ -1,0 +1,722 @@
+{
+  "sentiment_keywords": {
+    "Positive": [
+      "4Love",
+      "AYAYA",
+      "BASED",
+      "CINEMA",
+      "Clap",
+      "FeelsAmazingMan",
+      "FeelsGoodEnoughMan",
+      "FeelsGoodMan",
+      "FeelsStrongMan",
+      "froogyLove",
+      "GoldenKappa",
+      "HandsUp",
+      "HyperLUL",
+      "HYPERS",
+      "ICANT",
+      "Kappa_420",
+      "KEKW",
+      "KKonaW",
+      "LULE",
+      "lulWut",
+      "MEGALUL",
+      "MegaLUL",
+      "OMEGALUL",
+      "OMEGALULEatingAnEggplant",
+      "PeepoGiggle",
+      "peepoHappy",
+      "peepoLove",
+      "PepeLaugh",
+      "pepeLaugh",
+      "PepeLove",
+      "PepoLove",
+      "WICKED",
+      "widepepOMEGAKEKHappyChampHands",
+      "Xdd",
+      "YEP",
+      "+2",
+      "AYAYAgasm",
+      "AYAYAHyper",
+      "AYAYAWeird",
+      "catJAM",
+      "FeelsWowMan",
+      "HYPERAYAYA",
+      "LETSGO",
+      "LULW",
+      "NepYay",
+      "OMEGAPOGGERS",
+      "OMGScoots",
+      "PagMan",
+      "peepoG",
+      "PeepoGlad",
+      "peepoGlad",
+      "peepoWow",
+      "PepoG",
+      "pepoHYPE",
+      "POG",
+      "Pog",
+      "pOg",
+      "PogChimp",
+      "Pogey",
+      "PogFish",
+      "POGGERS",
+      "POGGIES",
+      "PogO",
+      "Pogplant",
+      "PogU",
+      "RikkaWOW",
+      "RoWOW",
+      "widepeepoGlad",
+      "Woah"
+    ],
+    "Negative": [
+      "02Rage",
+      "5Head",
+      "AmaRekt",
+      "BRUH",
+      "Bruh",
+      "CAUGHT",
+      "Clueless",
+      "COPIUM",
+      "FeelsBadMan",
+      "FeelsRageMan",
+      "Madge",
+      "Ohno",
+      "peepoCringe",
+      "peepoMad",
+      "peepoRage",
+      "Pepega",
+      "PepegaBlind",
+      "PepegaHands",
+      "PepegaPhone",
+      "PepeHands",
+      "PepoRage",
+      "rageW",
+      "ReallyMad",
+      "RIP",
+      "Sadge",
+      "SadgeBusiness",
+      "SadgeSitSip",
+      "WideRage",
+      "-2",
+      "AYAYAS",
+      "Hmm",
+      "HUH",
+      "monkaChrist",
+      "monkaCozy",
+      "monkaEyes",
+      "monkaGIGA",
+      "monkaGun",
+      "monkaH",
+      "monkaHmm",
+      "monkaJ",
+      "monkaLaugh",
+      "monkaMEGA",
+      "monkaO",
+      "monkaOMEGA",
+      "monkaPickle",
+      "monkaRage",
+      "monkaS",
+      "monkaSpeed",
+      "monkaSSS",
+      "monkaStab",
+      "monkaStare",
+      "monkaStop",
+      "monkaT",
+      "monkaThink",
+      "monkaTOS",
+      "monkaU",
+      "monkaW",
+      "monkaX",
+      "Pause",
+      "PauseChamp",
+      "peepoS",
+      "peepoScared",
+      "peepoWTF",
+      "PepeWTF",
+      "PicardWTF",
+      "Prayge",
+      "UhOh",
+      "WaitWhat",
+      "WTFCat"
+    ],
+    "Neutral": [
+      "catOK",
+      "FeelsOkayMan",
+      "OkayChamp",
+      "sOk"
+    ]
+  },
+  "emote_sentiment": {
+    "02Rage": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "4Love": {
+      "bin": "Positive",
+      "confidence": 0.87
+    },
+    "5Head": {
+      "bin": "Negative",
+      "confidence": 0.86
+    },
+    "AYAYA": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "AYAYAHyper": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "AYAYAS": {
+      "bin": "Negative",
+      "confidence": 0.86
+    },
+    "AYAYAWeird": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "AYAYAgasm": {
+      "bin": "Positive",
+      "confidence": 0.89
+    },
+    "AmaRekt": {
+      "bin": "Negative",
+      "confidence": 0.91
+    },
+    "BASED": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "BRUH": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "Bruh": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "CAUGHT": {
+      "bin": "Negative",
+      "confidence": 0.86
+    },
+    "FeelsAmazingMan": {
+      "bin": "Positive",
+      "confidence": 0.87
+    },
+    "FeelsBadMan": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "FeelsGoodEnoughMan": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "FeelsGoodMan": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "FeelsOkayMan": {
+      "bin": "Neutral",
+      "confidence": 0.75
+    },
+    "FeelsRageMan": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "FeelsWowMan": {
+      "bin": "Positive",
+      "confidence": 0.89
+    },
+    "GoldenKappa": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "HUH": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "HYPERAYAYA": {
+      "bin": "Positive",
+      "confidence": 0.89
+    },
+    "HYPERS": {
+      "bin": "Positive",
+      "confidence": 0.86
+    },
+    "HandsUp": {
+      "bin": "Positive",
+      "confidence": 0.86
+    },
+    "Hmm": {
+      "bin": "Negative",
+      "confidence": 0.72
+    },
+    "HyperLUL": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "ICANT": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "KEKW": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "KKonaW": {
+      "bin": "Positive",
+      "confidence": 0.86
+    },
+    "Kappa_420": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "LETSGO": {
+      "bin": "Positive",
+      "confidence": 0.91
+    },
+    "LULE": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "LULW": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "MEGALUL": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "MegaLUL": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "NepYay": {
+      "bin": "Positive",
+      "confidence": 0.89
+    },
+    "OMEGALUL": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "OMEGALULEatingAnEggplant": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "OMEGAPOGGERS": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "OMGScoots": {
+      "bin": "Positive",
+      "confidence": 0.89
+    },
+    "Ohno": {
+      "bin": "Negative",
+      "confidence": 0.77
+    },
+    "OkayChamp": {
+      "bin": "Neutral",
+      "confidence": 0.75
+    },
+    "POG": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "POGGERS": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "POGGIES": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "Pause": {
+      "bin": "Negative",
+      "confidence": 0.7
+    },
+    "PeepoGiggle": {
+      "bin": "Positive",
+      "confidence": 0.86
+    },
+    "PeepoGlad": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "PepeHands": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "PepeLaugh": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "PepeLove": {
+      "bin": "Positive",
+      "confidence": 0.87
+    },
+    "PepeWTF": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "Pepega": {
+      "bin": "Negative",
+      "confidence": 0.87
+    },
+    "PepegaBlind": {
+      "bin": "Negative",
+      "confidence": 0.87
+    },
+    "PepegaHands": {
+      "bin": "Negative",
+      "confidence": 0.87
+    },
+    "PepegaPhone": {
+      "bin": "Negative",
+      "confidence": 0.87
+    },
+    "PepoG": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "PepoLove": {
+      "bin": "Positive",
+      "confidence": 0.87
+    },
+    "PepoRage": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "PicardWTF": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "Pog": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "PogChimp": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "PogFish": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "PogO": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "PogU": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "Pogey": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "Pogplant": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "RIP": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "ReallyMad": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "RikkaWOW": {
+      "bin": "Positive",
+      "confidence": 0.89
+    },
+    "RoWOW": {
+      "bin": "Positive",
+      "confidence": 0.89
+    },
+    "Sadge": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "SadgeBusiness": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "SadgeSitSip": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "UhOh": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "WICKED": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "WTFCat": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "WaitWhat": {
+      "bin": "Negative",
+      "confidence": 0.78
+    },
+    "WideRage": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "Xdd": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "YEP": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "catJAM": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "catOK": {
+      "bin": "Neutral",
+      "confidence": 0.75
+    },
+    "froogyLove": {
+      "bin": "Positive",
+      "confidence": 0.87
+    },
+    "lulWut": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "monkaChrist": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "monkaCozy": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "monkaEyes": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "monkaGIGA": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "monkaGun": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "monkaH": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "monkaHmm": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "monkaJ": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "monkaLaugh": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "monkaMEGA": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "monkaO": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "monkaOMEGA": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "monkaPickle": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "monkaRage": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "monkaS": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "monkaSSS": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "monkaSpeed": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "monkaStab": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "monkaStare": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "monkaStop": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "monkaT": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "monkaTOS": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "monkaThink": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "monkaU": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "monkaW": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "monkaX": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "pOg": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "peepoCringe": {
+      "bin": "Negative",
+      "confidence": 0.89
+    },
+    "peepoG": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "peepoGlad": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "peepoLove": {
+      "bin": "Positive",
+      "confidence": 0.87
+    },
+    "peepoMad": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "peepoRage": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "peepoS": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "peepoScared": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "peepoWTF": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "peepoWow": {
+      "bin": "Positive",
+      "confidence": 0.89
+    },
+    "pepeLaugh": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "pepoHYPE": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "rageW": {
+      "bin": "Negative",
+      "confidence": 0.95
+    },
+    "sOk": {
+      "bin": "Neutral",
+      "confidence": 0.75
+    },
+    "widepeepoGlad": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "widepepOMEGAKEKHappyChampHands": {
+      "bin": "Positive",
+      "confidence": 0.95
+    },
+    "COPIUM": {
+      "bin": "Negative",
+      "confidence": 0.85
+    },
+    "Clueless": {
+      "bin": "Negative",
+      "confidence": 0.75
+    },
+    "Madge": {
+      "bin": "Negative",
+      "confidence": 0.9
+    },
+    "PagMan": {
+      "bin": "Positive",
+      "confidence": 0.8
+    },
+    "Woah": {
+      "bin": "Positive",
+      "confidence": 0.72
+    },
+    "PauseChamp": {
+      "bin": "Negative",
+      "confidence": 0.85
+    },
+    "Prayge": {
+      "bin": "Negative",
+      "confidence": 0.82
+    },
+    "peepoHappy": {
+      "bin": "Positive",
+      "confidence": 0.85
+    },
+    "Clap": {
+      "bin": "Positive",
+      "confidence": 0.82
+    },
+    "FeelsStrongMan": {
+      "bin": "Positive",
+      "confidence": 0.83
+    },
+    "CINEMA": {
+      "bin": "Positive",
+      "confidence": 0.8
+    },
+    "+2": {
+      "bin": "Positive",
+      "confidence": 1.0
+    },
+    "-2": {
+      "bin": "Negative",
+      "confidence": 1.0
+    }
+  }
+}

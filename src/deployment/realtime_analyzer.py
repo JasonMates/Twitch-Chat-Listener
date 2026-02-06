@@ -1,18 +1,75 @@
 import asyncio
 import logging
 import time
+import json
+from pathlib import Path
 from dataclasses import dataclass, asdict, field
 from collections import deque, Counter
-from typing import Optional, List, Dict, Callable
+from typing import Optional, List, Dict, Callable, Tuple, Protocol
 from enum import Enum
-import math
 
 logger = logging.getLogger(__name__)
 
+BASE_SENTIMENTS = ('Positive', 'Negative', 'Neutral')
+NORMALIZED_SENTIMENTS = {
+    'positive': 'Positive',
+    'negative': 'Negative',
+    'neutral': 'Neutral',
+}
 
-# Data Classes
+
+def normalize_sentiment(label: str) -> str:
+    return NORMALIZED_SENTIMENTS.get(str(label).strip().lower(), 'Neutral')
+
+
+def empty_scores() -> Dict[str, float]:
+    return {sentiment: 0.0 for sentiment in BASE_SENTIMENTS}
+
+
+def build_keyword_sets(sentiment_keywords: Dict[str, List[str]]) -> Dict[str, set]:
+    return {
+        sentiment: {keyword.lower() for keyword in keywords}
+        for sentiment, keywords in sentiment_keywords.items()
+    }
+
+
+def load_emote_lexicon(emote_json_path: Optional[str]) -> Tuple[Dict, Dict[str, List[str]]]:
+    if emote_json_path and Path(emote_json_path).exists():
+        with open(emote_json_path, 'r') as f:
+            data = json.load(f)
+            emote_sentiment = data.get('emote_sentiment', {})
+            raw_keywords = data.get('sentiment_keywords', {})
+    else:
+        emote_sentiment = {}
+        raw_keywords = {
+            'Positive': [],
+            'Negative': [],
+            'Neutral': [],
+        }
+
+    sentiment_keywords = {sentiment: [] for sentiment in BASE_SENTIMENTS}
+    for sentiment, keywords in raw_keywords.items():
+        sentiment_keywords[normalize_sentiment(sentiment)].extend(keywords)
+
+    for emote_data in emote_sentiment.values():
+        emote_data['bin'] = normalize_sentiment(emote_data.get('bin', 'Neutral'))
+
+    return emote_sentiment, sentiment_keywords
+
+
+# import vader (optional dependency)
+try:
+    from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+
+    VADER_AVAILABLE = True
+except ImportError:
+    VADER_AVAILABLE = False
+    logger.warning("VADER not installed. Install with: pip install vaderSentiment")
+
+
+# data classes
 class MomentType(Enum):
-    """Types of detected moments"""
+    """chat moment labels."""
     HYPE = "hype"
     FAIL = "fail"
     NEUTRAL = "neutral"
@@ -20,16 +77,16 @@ class MomentType(Enum):
 
 @dataclass
 class DetectedMoment:
-    """A detected hype or fail moment in chat"""
+    """single detected hype/fail moment."""
     moment_type: MomentType
     timestamp: float
-    duration: float  # How long it lasted (seconds)
+    duration: float  # how long it lasted (seconds)
     sentiment_positive_pct: float  # % of messages that were positive
-    sentiment_dominant: str  # Most common sentiment
-    message_count: int  # How many messages in the moment
-    velocity_peak: float  # Peak messages/second
-    acceleration: float  # How quickly did it accelerate
-    top_messages: List[str] = field(default_factory=list)  # Top 5 representative messages
+    sentiment_dominant: str  # most common sentiment
+    message_count: int  # how many messages in the moment
+    velocity_peak: float  # peak messages/second
+    acceleration: float  # how quickly it accelerated
+    top_messages: List[str] = field(default_factory=list)  # top 5 representative messages
 
     def to_dict(self):
         return {
@@ -40,9 +97,9 @@ class DetectedMoment:
 
 @dataclass
 class WindowStatistics:
-    """statistics for a rolling time window"""
-    timestamp: float  # Window timestamp
-    duration: int  # Window size (30, 60, 300)
+    """stats for one rolling window."""
+    timestamp: float  # window timestamp
+    duration: int  # window size (30, 60, 300)
     message_count: int
     sentiment_distribution: Dict[str, int]  # {'Positive': 45, 'Negative': 12, ...}
     sentiment_ratios: Dict[str, float]  # {'Positive': 0.75, ...}
@@ -52,149 +109,248 @@ class WindowStatistics:
     top_emotes: List[tuple] = field(default_factory=list)  # [('POGGERS', 15), ...]
 
 
-# ============================================================================
-# Sentiment Classifier Interface
-# ============================================================================
+# sentiment classifier interface
+class Classifier(Protocol):
+    def predict(self, text: str) -> tuple[str, float]:
+        ...
 
-class SentimentClassifier:
-    """
-    Interface for sentiment classification.
-    simple BoW baseline is included.
-    """
 
-    def __init__(self):
-        self.model = None
+class LexiconClassifier:
+    """emote + keyword classifier backed by emotes.json."""
+
+    def __init__(self, emote_json_path: str = None):
+        self.emote_sentiment, self.sentiment_keywords = load_emote_lexicon(emote_json_path)
+        if not self.emote_sentiment and not emote_json_path:
+            logger.warning("No JSON file provided or file not found. Using minimal defaults.")
+        self.sentiment_keyword_sets = build_keyword_sets(self.sentiment_keywords)
+
+        logger.info(f"Loaded {len(self.emote_sentiment)} emotes across "
+                    f"{len(self.sentiment_keywords)} sentiment categories")
 
     def predict(self, text: str) -> tuple[str, float]:
-        """
-        Classify text sentiment.
+        """score text and return (label, confidence)."""
+        if not text or not text.strip():
+            return ('Neutral', 0.5)
 
-        Args:
-            text: Input message text
+        sentiment_scores = empty_scores()
 
-        Returns:
-            (sentiment_label, confidence_score)
-            Example: ('Positive', 0.95)
-        """
-        raise NotImplementedError
-
-
-class SimpleBoWClassifier(SentimentClassifier):
-    """
-    Simple bag of words baseline classifier for testing for prototyping
-    """
-
-    def __init__(self):
-        super().__init__()
-
-        # simple word lists for each sentiment
-        self.sentiment_keywords = {
-            'Positive': {
-                'pog', 'poggers', 'yes', 'yep', 'yeah', 'wicked', 'based',
-                'omegalul', 'lul', 'lulw', 'kekw', 'noice', 'nice', 'good',
-                'great', 'amazing', 'insane', 'lit', 'fire', 'sick', '+2',
-            },
-            'Negative': {
-                'no', 'nah', 'nooo', 'bad', 'terrible', 'awful', 'eww', 'gross',
-                'hate', 'sucks', 'copium', 'sadge', 'ban', 'gg', 'loss', 'fail',
-                'trash', 'awful', 'pepeluh', 'clueless', '-2',
-            },
-            'Enthusiastic': {
-                'poggers', 'pog', 'omegalul', 'yes', 'yesss', 'www', 'hype',
-                'let\'s go', 'go', 'whoa', 'wow', 'omg', 'wait', 'what',
-                'clutch', 'carry', 'pentakill', 'mega', 'gigachad', 'icant'
-            },
-            'Anxious': {
-                'monkas', 'monka', 'ono', 'oh no', 'uh oh', 'hmm', 'uhh',
-                'scared', 'worried', 'nervous', 'tension', 'close',
-            },
-            'Neutral': {
-                'ok', 'noted', 'sure', 'got it', 'thanks', 'bye', 'hi',
-                'hello', 'hey', 'what', 'huh', 'pause', 'wait', 'download',
-            },
-        }
-
-        # emote sentiment mapping
-        self.emote_sentiment = {
-            'POGGERS': ('Enthusiastic', 0.9),
-            'Pog': ('Positive', 0.8),
-            'OMEGALUL': ('Positive', 0.85),
-            'LUL': ('Positive', 0.8),
-            'KEKW': ('Positive', 0.8),
-            'Sadge': ('Negative', 0.85),
-            'ResidentSleeper': ('Negative', 0.75),
-            'LULW': ('Positive', 0.8),
-            'Clueless': ('Negative', 0.7),
-            'MonkaS': ('Anxious', 0.85),
-            'MONKAS': ('Anxious', 0.85),
-            'FeelsGoodMan': ('Positive', 0.8),
-            'FeelsStrongMan': ('Negative', 0.75),
-        }
-
-    def predict(self, text: str) -> tuple[str, float]:
-        """classify text using simple keyword matching"""
+        words = text.split()
         text_lower = text.lower()
-        scores = {s: 0 for s in self.sentiment_keywords.keys()}
 
-        # score each sentiment
-        for sentiment, keywords in self.sentiment_keywords.items():
+        emote_count = 0
+        for word in words:
+            if word in self.emote_sentiment:
+                emote_data = self.emote_sentiment[word]
+                bin_type = emote_data['bin']
+                confidence = emote_data['confidence']
+                sentiment_scores[bin_type] += confidence * 3.0
+                emote_count += 1
+
+        for sentiment, keywords in self.sentiment_keyword_sets.items():
             for keyword in keywords:
                 if keyword in text_lower:
-                    scores[sentiment] += 1
+                    sentiment_scores[sentiment] += 0.5
 
-        # check for emotes (higher weight)
-        for emote, (sentiment, confidence) in self.emote_sentiment.items():
-            if emote in text:
-                scores[sentiment] += 3  # Higher weight for emotes
+        if len(text) > 3 and text.isupper() and emote_count == 0:
+            sentiment_scores['Positive'] += 1.0
 
-        # handle all caps (indicates enthusiasm or frustration)
-        if len(text) > 3 and text.isupper():
-            scores['Enthusiastic'] += 2
+        max_score = max(sentiment_scores.values())
 
-        # determine winner
-        max_score = max(scores.values())
         if max_score == 0:
-            return ('Neutral', 0.5)  # default neutral
+            return ('Neutral', 0.5)
 
-        best_sentiment = [s for s, score in scores.items() if score == max_score][0]
-        confidence = min(0.95, 0.5 + (max_score / 10))  # Cap at 0.95
+        best_sentiment = max(sentiment_scores.items(), key=lambda x: x[1])[0]
+
+        total_score = sum(sentiment_scores.values())
+        if total_score > 0:
+            confidence = min(0.95, max_score / total_score)
+            if emote_count > 0:
+                confidence = min(0.95, confidence * 1.1)
+        else:
+            confidence = 0.5
 
         return (best_sentiment, confidence)
 
 
-# Sentiment Aggregation (Rolling Windows)
+class HybridClassifier:
+    """blend emote scores with vader when emotes are weak."""
+
+    def __init__(self, emote_json_path: Optional[str] = None, use_vader: bool = True):
+        """initialize hybrid classifier."""
+        self.emote_sentiment, self.sentiment_keywords = load_emote_lexicon(emote_json_path)
+        if not self.emote_sentiment and not emote_json_path:
+            logger.warning("No JSON file provided. Using minimal emote set.")
+        self.sentiment_keyword_sets = build_keyword_sets(self.sentiment_keywords)
+
+        self.use_vader = use_vader and VADER_AVAILABLE
+        if self.use_vader:
+            self.vader = SentimentIntensityAnalyzer()
+            logger.info("VADER sentiment analyzer initialized")
+        else:
+            self.vader = None
+            if use_vader and not VADER_AVAILABLE:
+                logger.warning("VADER requested but not available. Install: pip install vaderSentiment")
+
+        logger.info(f"HybridClassifier initialized - "
+                    f"Emotes: {len(self.emote_sentiment)}, "
+                    f"VADER: {'enabled' if self.use_vader else 'disabled'}")
+
+    def predict(self, text: str) -> Tuple[str, float]:
+        """Classify text using hybrid approach."""
+        if not text or not text.strip():
+            return ('Neutral', 0.5)
+
+        emote_scores, emote_confidence = self._analyze_emotes(text)
+
+        vader_scores = None
+        vader_confidence = 0.0
+
+        if self.use_vader and emote_confidence < 0.7:
+            vader_scores, vader_confidence = self._analyze_with_vader(text)
+
+        final_sentiment, final_confidence = self._combine_scores(
+            emote_scores, emote_confidence,
+            vader_scores, vader_confidence
+        )
+
+        return (final_sentiment, final_confidence)
+
+    def _analyze_emotes(self, text: str) -> Tuple[Dict[str, float], float]:
+        """Analyze text using emote-based BoW."""
+        sentiment_scores = empty_scores()
+
+        words = text.split()
+        text_lower = text.lower()
+
+        emote_count = 0
+        emote_confidence_sum = 0.0
+
+        for word in words:
+            if word in self.emote_sentiment:
+                emote_data = self.emote_sentiment[word]
+                bin_type = emote_data['bin']
+                confidence = emote_data['confidence']
+                sentiment_scores[bin_type] += confidence * 3.0
+                emote_count += 1
+                emote_confidence_sum += confidence
+
+        for sentiment, keywords in self.sentiment_keyword_sets.items():
+            for keyword in keywords:
+                if keyword in text_lower:
+                    sentiment_scores[sentiment] += 0.5
+
+        if len(text) > 3 and text.isupper() and emote_count == 0:
+            sentiment_scores['Positive'] += 1.0
+
+        max_score = max(sentiment_scores.values())
+        total_score = sum(sentiment_scores.values())
+
+        if max_score == 0:
+            confidence = 0.0
+        elif emote_count > 0:
+            avg_emote_conf = emote_confidence_sum / emote_count
+            confidence = min(0.95, avg_emote_conf * (max_score / total_score))
+        else:
+            confidence = min(0.7, max_score / total_score) if total_score > 0 else 0.0
+
+        return sentiment_scores, confidence
+
+    def _analyze_with_vader(self, text: str) -> Tuple[Optional[Dict[str, float]], float]:
+        """Analyze text using VADER."""
+        if not self.vader:
+            return None, 0.0
+
+        vader_result = self.vader.polarity_scores(text)
+
+        sentiment_scores = empty_scores()
+
+        pos = vader_result['pos']
+        neg = vader_result['neg']
+        neu = vader_result['neu']
+        compound = vader_result['compound']
+
+        if compound > 0.05:
+            sentiment_scores['Positive'] = pos * 10
+        elif compound < -0.05:
+            sentiment_scores['Negative'] = neg * 10
+        else:
+            sentiment_scores['Neutral'] = neu * 10
+
+        confidence = abs(compound)
+        return sentiment_scores, confidence
+
+    def _combine_scores(
+            self,
+            emote_scores: Dict[str, float],
+            emote_confidence: float,
+            vader_scores: Optional[Dict[str, float]],
+            vader_confidence: float
+    ) -> Tuple[str, float]:
+        """Combine emote and VADER scores."""
+        if vader_scores is None:
+            max_score = max(emote_scores.values())
+            if max_score == 0:
+                return ('Neutral', 0.5)
+            best_sentiment = max(emote_scores.items(), key=lambda x: x[1])[0]
+            return (best_sentiment, max(0.5, emote_confidence))
+
+        if emote_confidence > 0.7:
+            emote_weight = 0.9
+            vader_weight = 0.1
+        elif emote_confidence < 0.3:
+            emote_weight = 0.2
+            vader_weight = 0.8
+        else:
+            total_conf = emote_confidence + vader_confidence
+            if total_conf > 0:
+                emote_weight = emote_confidence / total_conf
+                vader_weight = vader_confidence / total_conf
+            else:
+                emote_weight = 0.5
+                vader_weight = 0.5
+
+        combined_scores = {
+            sentiment: (emote_scores[sentiment] * emote_weight +
+                        vader_scores[sentiment] * vader_weight)
+            for sentiment in emote_scores.keys()
+        }
+
+        max_score = max(combined_scores.values())
+        if max_score == 0:
+            return ('Neutral', 0.5)
+
+        best_sentiment = max(combined_scores.items(), key=lambda x: x[1])[0]
+        total_score = sum(combined_scores.values())
+        score_confidence = max_score / total_score if total_score > 0 else 0.5
+
+        final_confidence = min(0.95, (
+                score_confidence * 0.6 +
+                emote_confidence * emote_weight * 0.2 +
+                vader_confidence * vader_weight * 0.2
+        ))
+
+        return (best_sentiment, final_confidence)
+
+
+# sentiment aggregation
 class SentimentAggregator:
-    """
-    Aggregate sentiment over rolling time windows
-    Maintains statistics windows.
-    """
+    """keeps rolling sentiment windows."""
 
     def __init__(self, window_sizes: List[int] = None):
         if window_sizes is None:
-            window_sizes = [30, 60, 300]  # 30s, 1m, 5m
+            window_sizes = [30, 60, 300]
 
         self.window_sizes = window_sizes
 
-        # Messages in each window: deque of (timestamp, sentiment, confidence, text)
         self.windows = {
             size: deque() for size in window_sizes
         }
 
-        # All messages (for backlog)
         self.all_messages = deque(maxlen=10000)
 
     def add(self, timestamp: float, sentiment: str, confidence: float,
             text: str, context: Dict = None):
-        """
-        Add a classified message to the aggregator.
-
-        Args:
-            timestamp: Unix timestamp
-            sentiment: Sentiment label (e.g., 'Positive')
-            confidence: Confidence score (0-1)
-            text: Original message text
-            context: Optional additional context
-        """
+        """add one classified message."""
         msg = {
             'timestamp': timestamp,
             'sentiment': sentiment,
@@ -203,28 +359,18 @@ class SentimentAggregator:
             'context': context or {},
         }
 
-        # add to all windows
         now = time.time()
         for window_size, window in self.windows.items():
             window.append(msg)
-            # remove expired messages
             while window and window[0]['timestamp'] < now - window_size:
                 window.popleft()
 
         self.all_messages.append(msg)
 
     def get_window_stats(self, window_size: int = 30) -> WindowStatistics:
-        """
-        Get statistics for a specific window.
-
-        Args:
-            window_size: 30, 60, or 300 (seconds)
-
-        Returns:
-            WindowStatistics with distribution, ratios, dominant sentiment, etc.
-        """
+        """return stats for a given window size."""
         if window_size not in self.windows:
-            raise ValueError(f"Unknown window size: {window_size}")
+            raise ValueError(f"Invalid window size: {window_size}")
 
         window = self.windows[window_size]
         now = time.time()
@@ -236,119 +382,107 @@ class SentimentAggregator:
                 message_count=0,
                 sentiment_distribution={},
                 sentiment_ratios={},
-                dominant_sentiment='None',
-                messages_per_second=0,
-                velocity_ratio=0,
+                dominant_sentiment='Neutral',
+                messages_per_second=0.0,
+                velocity_ratio=1.0,
+                top_emotes=[],
             )
 
-        # count sentiments
         sentiment_counts = Counter(msg['sentiment'] for msg in window)
-        total = len(window)
+        total_msgs = len(window)
 
-        # calculate ratios
         sentiment_ratios = {
-            sentiment: count / total
-            for sentiment, count in sentiment_counts.items()
+            s: count / total_msgs for s, count in sentiment_counts.items()
         }
 
-        # dominant sentiment
-        dominant = sentiment_counts.most_common(1)[0][0]
+        dominant = max(sentiment_counts.items(), key=lambda x: x[1])[0] if sentiment_counts else 'Neutral'
 
-        # messages per second
-        time_span = window[-1]['timestamp'] - window[0]['timestamp']
-        mps = total / max(time_span, 1)
+        time_span = now - window[0]['timestamp']
+        msgs_per_sec = total_msgs / max(time_span, 1.0)
 
-        # top emotes
-        all_emotes = []
+        emote_counter = Counter()
         for msg in window:
-            emotes = msg['context'].get('emotes', [])
-            all_emotes.extend(emotes)
-        emote_counts = Counter(all_emotes)
-        top_emotes = emote_counts.most_common(5)
+            if 'emotes' in msg.get('context', {}):
+                emotes = msg['context']['emotes']
+                if isinstance(emotes, list):
+                    emote_counter.update(emotes)
+
+        top_emotes = emote_counter.most_common(10)
 
         return WindowStatistics(
             timestamp=now,
             duration=window_size,
-            message_count=total,
+            message_count=total_msgs,
             sentiment_distribution=dict(sentiment_counts),
             sentiment_ratios=sentiment_ratios,
             dominant_sentiment=dominant,
-            messages_per_second=mps,
-            velocity_ratio=0,  # Set by moment detector
+            messages_per_second=msgs_per_sec,
+            velocity_ratio=1.0,
             top_emotes=top_emotes,
         )
 
     def get_all_stats(self) -> Dict[int, WindowStatistics]:
+        """get stats for all windows"""
         return {
             size: self.get_window_stats(size)
             for size in self.window_sizes
         }
 
 
-# Moment Detection
+# moment detection
 class MomentDetector:
-    """
-    Detect hype moments and fail moments in chat.
+    """detects hype/fail spikes from sentiment and velocity."""
 
-    Uses a combination of signals:
-    - Sentiment spike (% of positive/negative messages)
-    - Velocity spike (acceleration in messages/second)
-    - Duration filter (must sustain for 20+ seconds)
-    """
+    def __init__(
+            self,
+            hype_sentiment_threshold: float = 0.7,
+            fail_sentiment_threshold: float = 0.6,
+            velocity_spike_threshold: float = 2.0,
+            min_duration: float = 5.0,
+            cooldown: float = 30.0,
+    ):
+        self.hype_sentiment_threshold = hype_sentiment_threshold
+        self.fail_sentiment_threshold = fail_sentiment_threshold
+        self.velocity_spike_threshold = velocity_spike_threshold
+        self.min_duration = min_duration
+        self.cooldown = cooldown
 
-    def __init__(self):
-        self.detected_moments: deque = deque(maxlen=100)
-        self.last_moment_time = 0
+        self.last_moment_time = 0.0
+        self.detected_moments = deque(maxlen=100)
 
-        # Configuration
-        self.hype_sentiment_threshold = 0.70  # 70%+ positive/enthusiastic
-        self.fail_sentiment_threshold = 0.60  # 60%+ negative
-        self.velocity_spike_threshold = 2.0  # 2x baseline
-        self.min_duration = 20  # Must last 20 seconds
-        self.moment_cooldown = 10  # Don't detect moments within 10 seconds
-
-    def check(self, current_stats: WindowStatistics,
-              prev_stats: Optional[WindowStatistics] = None,
-              baseline_velocity: float = None) -> Optional[DetectedMoment]:
-        """
-        Check if current window represents a moment.
-
-        Args:
-            current_stats: Stats from current 30-second window
-            prev_stats: Stats from previous 30-second window (for acceleration)
-            baseline_velocity: Average baseline velocity for velocity_ratio
-
-        Returns:
-            DetectedMoment if detected, None otherwise
-        """
+    def check(
+            self,
+            current_stats: WindowStatistics,
+            previous_stats: Optional[WindowStatistics],
+            baseline_velocity: float,
+    ) -> Optional[DetectedMoment]:
+        """return a moment when thresholds are met, else None."""
         now = time.time()
 
-        # cooldown check
-        if now - self.last_moment_time < self.moment_cooldown:
+        if now - self.last_moment_time < self.cooldown:
             return None
 
-        if current_stats.message_count < 10:  # Need at least 10 messages
+        if current_stats.message_count < 20:
             return None
 
-        # sentiment analysis
-        positive_pct = current_stats.sentiment_ratios.get('Positive', 0) + \
-                       current_stats.sentiment_ratios.get('Enthusiastic', 0)
+        positive_pct = current_stats.sentiment_ratios.get('Positive', 0)
         negative_pct = current_stats.sentiment_ratios.get('Negative', 0)
 
-        # velocity analysis
-        acceleration = 0
-        if prev_stats and prev_stats.message_count > 0:
-            acceleration = (current_stats.messages_per_second - prev_stats.messages_per_second) / \
-                           (prev_stats.messages_per_second + 0.1)
+        velocity_spike = current_stats.messages_per_second > (
+                baseline_velocity * self.velocity_spike_threshold
+        )
 
-        velocity_spike = baseline_velocity and \
-                         current_stats.messages_per_second > baseline_velocity * self.velocity_spike_threshold
+        acceleration = 0.0
+        if previous_stats and previous_stats.messages_per_second > 0:
+            acceleration = (
+                    (current_stats.messages_per_second - previous_stats.messages_per_second) /
+                    previous_stats.messages_per_second
+            )
 
-        # detect hype moment
         hype_conditions = [
             positive_pct > self.hype_sentiment_threshold,
             velocity_spike or acceleration > 1.0,
-            current_stats.message_count > 50,
+            current_stats.message_count > 30,
         ]
 
         if all(hype_conditions):
@@ -367,7 +501,6 @@ class MomentDetector:
             self.detected_moments.append(moment)
             return moment
 
-        # detect fail moment
         fail_conditions = [
             negative_pct > self.fail_sentiment_threshold,
             velocity_spike or acceleration > 0.5,
@@ -394,43 +527,34 @@ class MomentDetector:
 
     @staticmethod
     def _extract_top_messages(stats: WindowStatistics, n: int = 5) -> List[str]:
-        """Extract top representative messages from a window"""
-        # Placeholder: would need access to actual messages
-        # For now, return empty list
+        """extract top representative messages from a window"""
         return []
 
     def get_recent_moments(self, n: int = 10) -> List[DetectedMoment]:
-        """Get last N detected moments"""
+        """get last n moments."""
         return list(self.detected_moments)[-n:]
 
 
-
-# Realtime Analysis
+# realtime analysis
 class RealtimeAnalyzer:
-    """
-    Orchestrates the full pipeline:
-    Chat Listener -> Sentiment Classifier -> Aggregation -> Moment Detection -> Dashboard
-    """
+    """wires listener, classifier, aggregation, and moment detection."""
 
     def __init__(
             self,
             chat_listener,
-            classifier: Optional[SentimentClassifier] = None,
+            classifier: Optional[Classifier] = None,
             on_update_callback: Optional[Callable] = None,
     ):
         self.chat_listener = chat_listener
-        self.classifier = classifier or SimpleBoWClassifier()
+        self.classifier = classifier or LexiconClassifier()
         self.on_update_callback = on_update_callback
 
-        # pipeline components
         self.aggregator = SentimentAggregator()
         self.moment_detector = MomentDetector()
 
-        # statistics tracking
         self.prev_window_stats = None
         self.baseline_velocity = 1.0
 
-        # metrics
         self.total_messages_processed = 0
         self.total_moments_detected = 0
 
@@ -443,19 +567,16 @@ class RealtimeAnalyzer:
 
         while self.is_running:
             try:
-                # get next message (non-blocking)
                 msg_context = await self.chat_listener.get_message()
 
                 if msg_context is None:
                     await asyncio.sleep(0.1)
                     continue
 
-                # classify sentiment
                 sentiment, confidence = self.classifier.predict(msg_context.text)
                 msg_context.sentiment = sentiment
                 msg_context.confidence = confidence
 
-                # add to aggregator with context
                 self.aggregator.add(
                     timestamp=msg_context.timestamp,
                     sentiment=sentiment,
@@ -471,9 +592,8 @@ class RealtimeAnalyzer:
 
                 self.total_messages_processed += 1
 
-                # periodically check for moments and update stats
                 now = time.time()
-                if now - last_stats_time > 30:  # every 30 seconds
+                if now - last_stats_time > 30:
                     await self._update_statistics()
                     last_stats_time = now
 
@@ -483,15 +603,12 @@ class RealtimeAnalyzer:
 
     async def _update_statistics(self):
         try:
-            # get current window stats
             current_stats = self.aggregator.get_window_stats(window_size=30)
 
-            # update baseline velocity
             if current_stats.messages_per_second > 0:
                 self.baseline_velocity = (self.baseline_velocity * 0.9 +
                                           current_stats.messages_per_second * 0.1)
 
-            # check for moments
             moment = self.moment_detector.check(
                 current_stats,
                 self.prev_window_stats,
@@ -501,12 +618,13 @@ class RealtimeAnalyzer:
             if moment:
                 self.total_moments_detected += 1
                 try:
-                    logger.info(f"Moment detected: {moment.moment_type.value} "
-                                f"({moment.message_count} msgs, {moment.velocity_peak:.1f} msg/s)")
-                except:
-                    logger.info("Moment detected")
+                    logger.info(
+                        f"moment detected: {moment.moment_type.value} "
+                        f"({moment.message_count} msgs, {moment.velocity_peak:.1f} msg/s)"
+                    )
+                except Exception:
+                    logger.info("moment detected")
 
-            # call update callback
             if self.on_update_callback:
                 await self.on_update_callback({
                     'all_stats': self.aggregator.get_all_stats(),
@@ -526,7 +644,6 @@ class RealtimeAnalyzer:
         """start analysis pipeline"""
         logger.info("Starting RealtimeAnalyzer")
 
-        # start chat listener and message processor in parallel
         listener_task = asyncio.create_task(self.chat_listener.start())
         processor_task = asyncio.create_task(self.process_messages())
 
@@ -553,13 +670,12 @@ class RealtimeAnalyzer:
         }
 
 
-
-# Example Usage
+# example usage
 async def example_update_handler(update_data: Dict):
     """callback for pipeline updates"""
     moment = update_data.get('moment_detected')
     if moment:
-        print(f"\n🎯 MOMENT DETECTED: {moment.moment_type.value.upper()}")
+        print(f"\nmoment detected: {moment.moment_type.value.upper()}")
         print(f"   Time: {moment.timestamp}")
         print(f"   Messages: {moment.message_count}")
         print(f"   Velocity: {moment.velocity_peak:.1f} msg/s")
@@ -568,7 +684,8 @@ async def example_update_handler(update_data: Dict):
     stats = update_data['all_stats']
     if 30 in stats:
         w30 = stats[30]
-        print(f"\n📊 30-second window:")
+        print(f"\n30-second window:")
         print(f"   {w30.message_count} messages")
         print(f"   Sentiment: {w30.sentiment_dominant}")
         print(f"   {w30.messages_per_second:.1f} msg/s")
+
