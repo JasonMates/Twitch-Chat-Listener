@@ -13,8 +13,12 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 # import listener and hybrid classifier
-from src.deployment.twitch_listener import SimpleTwitchChatListener
-from src.deployment.realtime_analyzer import HybridClassifier
+try:
+    from src.deployment.twitch_listener import SimpleTwitchChatListener
+    from src.deployment.realtime_analyzer import HybridClassifier
+except ImportError:
+    from twitch_listener import SimpleTwitchChatListener
+    from realtime_analyzer import HybridClassifier
 
 # configure logging
 logging.basicConfig(
@@ -41,7 +45,7 @@ stats = {
 
 
 def signal_handler(sig, frame):
-    """Handle Ctrl+C gracefully"""
+    """handle Ctrl+C"""
     global listener
     if listener:
         asyncio.create_task(listener.stop())
@@ -57,28 +61,35 @@ def get_sentiment_color(sentiment):
     return colors.get(sentiment, '\033[0m')
 
 
+def normalize_bot_token(token: str) -> str:
+    value = (token or "").strip()
+    if value and not value.lower().startswith("oauth:"):
+        value = f"oauth:{value}"
+    return value
+
+
 async def handle_message(msg_context):
-    """Analyze and display message with sentiment"""
+    """display message with sentiment"""
     global classifier, stats
 
-    # Classify sentiment
+    # classify sentiment
     sentiment, confidence = classifier.predict(msg_context.text)
 
-    # Update stats
+    # update stats
     stats['total'] += 1
     stats['sentiments'][sentiment] += 1
 
-    # Format timestamp
+    # format timestamp
     dt = datetime.fromtimestamp(msg_context.timestamp)
     time_str = dt.strftime('%H:%M:%S')
     # Get color
     color = get_sentiment_color(sentiment)
     reset = '\033[0m'
 
-    # Format confidence as percentage
+    # format confidence as percentage
     conf_pct = f"{confidence * 100:.0f}%"
 
-    # Format emotes
+    # format emotes
     emote_display = ''
     if msg_context.emotes:
         emotes_str = ', '.join(msg_context.emotes[:3])
@@ -96,8 +107,8 @@ async def handle_message(msg_context):
 
 
 def print_stats():
-    """Print current statistics"""
-    print("\n" + "─" * 100)
+    """print statistics"""
+    print("\n" + "-" * 100)
     elapsed = time.time() - stats['start_time']
     mins, secs = divmod(int(elapsed), 60)
     rate = stats['total'] / elapsed if elapsed > 0 else 0
@@ -112,17 +123,17 @@ def print_stats():
             color = get_sentiment_color(sentiment)
             reset = '\033[0m'
 
-            # Create simple bar
+            # create bar
             bar_len = int(pct / 2)
-            bar = '█' * bar_len
+            bar = "#" * bar_len
 
             print(f"  {color}{sentiment:13s}{reset}: {bar} {count:3d} ({pct:4.1f}%)")
 
-    print("─" * 100 + "\n")
+    print("-" * 100 + "\n")
 
 
 async def main():
-    """Run the simple sentiment display"""
+    """run the sentiment display"""
     global listener, classifier
 
     print("\n" + "=" * 50)
@@ -130,7 +141,7 @@ async def main():
     print("=" * 50)
     print()
 
-    # Get channel from user
+    # get channel from user
     while True:
         channel = input("Enter Twitch channel name: ").strip().lower()
         if channel:
@@ -139,7 +150,7 @@ async def main():
 
     print()
 
-    # Validate credentials
+    # validate credentials
     if not BOT_TOKEN:
         print("\nERROR: Missing TWITCH_BOT_TOKEN!")
         print("\nCreate a .env file with:")
@@ -149,23 +160,23 @@ async def main():
     try:
         print(f"[1/3] Loading sentiment classifier...")
 
-        # Find Emotes.json
-        emote_json_path = project_root / 'src' / 'deployment' / 'Emotes.json'
-        if not emote_json_path.exists():
-            emote_json_path = Path(__file__).parent / 'Emotes.json'
+        # load VADER emote lexicon
+        emote_lexicon_path = project_root / 'src' / 'deployment' / 'twitch_emote_vader_lexicon.txt'
+        if not emote_lexicon_path.exists():
+            emote_lexicon_path = Path(__file__).parent / 'twitch_emote_vader_lexicon.txt'
 
-        # Initialize Hybrid Classifier (Emotes + VADER)
-        if emote_json_path.exists():
+        # Init Hybrid Classifier
+        if emote_lexicon_path.exists():
             classifier = HybridClassifier(
-                emote_json_path=str(emote_json_path),
+                emote_lexicon_path=str(emote_lexicon_path),
                 use_vader=True
             )
-            print(f"   Loaded 200+ emotes from: {emote_json_path.name}")
+            print(f"   Loaded emote lexicon from: {emote_lexicon_path.name}")
         else:
             classifier = HybridClassifier(use_vader=True)
-            print(f"   Emotes.json not found - using basic mode")
+            print(f"   Emote lexicon not found - using basic mode")
 
-        # Check VADER status
+        # check VADER status
         if classifier.use_vader and classifier.vader:
             print(f"   VADER text analysis enabled")
         else:
@@ -175,7 +186,7 @@ async def main():
         print(f"[2/3] Connecting to Twitch IRC...")
         listener = SimpleTwitchChatListener(
             channel=channel,
-            bot_token=BOT_TOKEN,
+            bot_token=normalize_bot_token(BOT_TOKEN),
             nickname=BOT_NICK,
             on_message_callback=handle_message,
         )
@@ -183,17 +194,17 @@ async def main():
         print(f"[3/3] Starting chat listener...\n")
         print("Connected! Analyzing messages...\n")
 
-        # Signal handler for Ctrl+C
+        # signal handler for Ctrl+C
         signal.signal(signal.SIGINT, signal_handler)
 
-        # Start listening
+        # start listening
         await listener.start()
 
     except asyncio.CancelledError:
         print("\n\n  " + "=" * 96)
         print("    Shutting down...")
 
-        # Final stats
+        # final stats
         if stats['total'] > 0:
             print("\n   FINAL STATISTICS")
             print("  " + "=" * 96)

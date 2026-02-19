@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import time
-import json
+import re
 from pathlib import Path
 from dataclasses import dataclass, asdict, field
 from collections import deque, Counter
@@ -16,6 +16,7 @@ NORMALIZED_SENTIMENTS = {
     'negative': 'Negative',
     'neutral': 'Neutral',
 }
+_EMOTE_EDGE_RE = re.compile(r"^[^\w]+|[^\w]+$")
 
 
 def normalize_sentiment(label: str) -> str:
@@ -33,19 +34,71 @@ def build_keyword_sets(sentiment_keywords: Dict[str, List[str]]) -> Dict[str, se
     }
 
 
-def load_emote_lexicon(emote_json_path: Optional[str]) -> Tuple[Dict, Dict[str, List[str]]]:
-    if emote_json_path and Path(emote_json_path).exists():
-        with open(emote_json_path, 'r') as f:
-            data = json.load(f)
-            emote_sentiment = data.get('emote_sentiment', {})
-            raw_keywords = data.get('sentiment_keywords', {})
-    else:
-        emote_sentiment = {}
-        raw_keywords = {
-            'Positive': [],
-            'Negative': [],
-            'Neutral': [],
-        }
+def _token_variants(token: str) -> List[str]:
+    base = str(token).strip()
+    if not base:
+        return []
+    stripped = _EMOTE_EDGE_RE.sub("", base)
+    raw = (base, base.lower(), stripped, stripped.lower())
+    out = []
+    seen = set()
+    for item in raw:
+        if item and item not in seen:
+            out.append(item)
+            seen.add(item)
+    return out
+
+
+def _score_to_bin(score: float) -> str:
+    if score > 0.05:
+        return 'Positive'
+    if score < -0.05:
+        return 'Negative'
+    return 'Neutral'
+
+
+def _score_to_confidence(score: float) -> float:
+    # VADER style valence typically falls in [-4, 4]
+    return max(0.25, min(0.95, abs(float(score)) / 4.0))
+
+
+def _load_vader_style_lexicon(lexicon_path: Path) -> Dict:
+    emote_sentiment = {}
+    with open(lexicon_path, 'r', encoding='utf-8') as f:
+        for line in f:
+            parts = line.strip().split('\t')
+            if len(parts) < 2:
+                continue
+            token = parts[0].strip()
+            if not token:
+                continue
+            try:
+                score = float(parts[1])
+            except ValueError:
+                continue
+
+            entry = {
+                'score': score,
+                'bin': _score_to_bin(score),
+                'confidence': _score_to_confidence(score),
+            }
+            emote_sentiment[token] = entry
+            low = token.lower()
+            if low not in emote_sentiment:
+                emote_sentiment[low] = entry
+    return emote_sentiment
+
+
+def load_emote_lexicon(emote_lexicon_path: Optional[str] = None) -> Tuple[Dict, Dict[str, List[str]]]:
+    emote_sentiment = {}
+    raw_keywords = {
+        'Positive': [],
+        'Negative': [],
+        'Neutral': [],
+    }
+
+    if emote_lexicon_path and Path(emote_lexicon_path).exists():
+        emote_sentiment = _load_vader_style_lexicon(Path(emote_lexicon_path))
 
     sentiment_keywords = {sentiment: [] for sentiment in BASE_SENTIMENTS}
     for sentiment, keywords in raw_keywords.items():
@@ -57,7 +110,7 @@ def load_emote_lexicon(emote_json_path: Optional[str]) -> Tuple[Dict, Dict[str, 
     return emote_sentiment, sentiment_keywords
 
 
-# import vader (optional dependency)
+# import vader
 try:
     from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 
@@ -116,12 +169,14 @@ class Classifier(Protocol):
 
 
 class LexiconClassifier:
-    """emote + keyword classifier backed by emotes.json."""
+    """emote + keyword classifier backed by VADER-style emote lexicon."""
 
-    def __init__(self, emote_json_path: str = None):
-        self.emote_sentiment, self.sentiment_keywords = load_emote_lexicon(emote_json_path)
-        if not self.emote_sentiment and not emote_json_path:
-            logger.warning("No JSON file provided or file not found. Using minimal defaults.")
+    def __init__(self, emote_lexicon_path: Optional[str] = None):
+        self.emote_sentiment, self.sentiment_keywords = load_emote_lexicon(
+            emote_lexicon_path=emote_lexicon_path,
+        )
+        if not self.emote_sentiment:
+            logger.warning("No emote lexicon found. Using minimal defaults.")
         self.sentiment_keyword_sets = build_keyword_sets(self.sentiment_keywords)
 
         logger.info(f"Loaded {len(self.emote_sentiment)} emotes across "
@@ -139,12 +194,14 @@ class LexiconClassifier:
 
         emote_count = 0
         for word in words:
-            if word in self.emote_sentiment:
-                emote_data = self.emote_sentiment[word]
-                bin_type = emote_data['bin']
-                confidence = emote_data['confidence']
-                sentiment_scores[bin_type] += confidence * 3.0
-                emote_count += 1
+            for cand in _token_variants(word):
+                if cand in self.emote_sentiment:
+                    emote_data = self.emote_sentiment[cand]
+                    bin_type = emote_data['bin']
+                    confidence = emote_data['confidence']
+                    sentiment_scores[bin_type] += confidence * 3.0
+                    emote_count += 1
+                    break
 
         for sentiment, keywords in self.sentiment_keyword_sets.items():
             for keyword in keywords:
@@ -175,11 +232,17 @@ class LexiconClassifier:
 class HybridClassifier:
     """blend emote scores with vader when emotes are weak."""
 
-    def __init__(self, emote_json_path: Optional[str] = None, use_vader: bool = True):
+    def __init__(
+            self,
+            emote_lexicon_path: Optional[str] = None,
+            use_vader: bool = True,
+    ):
         """initialize hybrid classifier."""
-        self.emote_sentiment, self.sentiment_keywords = load_emote_lexicon(emote_json_path)
-        if not self.emote_sentiment and not emote_json_path:
-            logger.warning("No JSON file provided. Using minimal emote set.")
+        self.emote_sentiment, self.sentiment_keywords = load_emote_lexicon(
+            emote_lexicon_path=emote_lexicon_path,
+        )
+        if not self.emote_sentiment:
+            logger.warning("No emote lexicon found. Using minimal emote set.")
         self.sentiment_keyword_sets = build_keyword_sets(self.sentiment_keywords)
 
         self.use_vader = use_vader and VADER_AVAILABLE
@@ -226,13 +289,15 @@ class HybridClassifier:
         emote_confidence_sum = 0.0
 
         for word in words:
-            if word in self.emote_sentiment:
-                emote_data = self.emote_sentiment[word]
-                bin_type = emote_data['bin']
-                confidence = emote_data['confidence']
-                sentiment_scores[bin_type] += confidence * 3.0
-                emote_count += 1
-                emote_confidence_sum += confidence
+            for cand in _token_variants(word):
+                if cand in self.emote_sentiment:
+                    emote_data = self.emote_sentiment[cand]
+                    bin_type = emote_data['bin']
+                    confidence = emote_data['confidence']
+                    sentiment_scores[bin_type] += confidence * 3.0
+                    emote_count += 1
+                    emote_confidence_sum += confidence
+                    break
 
         for sentiment, keywords in self.sentiment_keyword_sets.items():
             for keyword in keywords:
